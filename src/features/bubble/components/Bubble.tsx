@@ -47,10 +47,7 @@ export const Bubble = (props: BubbleProps) => {
                     (props.theme?.button?.size === 'large' ? ' bottom-24' : ' bottom-20')
                 }
             >
-                <div className="header">
-                    <FaRegCommentDots /> {robot}
-                    <h2>Chatbot</h2> {Testeee}
-                </div>
+              
                 <Show when={isBotStarted()}>
                     <Bot
                         badgeBackgroundColor={bubbleProps.theme?.chatWindow?.backgroundColor}
