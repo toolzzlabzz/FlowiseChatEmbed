@@ -3,6 +3,7 @@ import styles from '../../../assets/index.css'
 import { BubbleButton } from './BubbleButton'
 import { BubbleParams } from '../types'
 import { Bot, BotProps } from '../../../components/Bot'
+import { FaRegCommentDots } from 'react-icons/fa' // Importing message icon from Font Awesome
 
 export type BubbleProps = BotProps & BubbleParams
 
@@ -46,6 +47,10 @@ export const Bubble = (props: BubbleProps) => {
                     (props.theme?.button?.size === 'large' ? ' bottom-24' : ' bottom-20')
                 }
             >
+                <div className="header">
+                    <FaRegCommentDots /> {robot}
+                    <h2>Chatbot</h2> {Testeee}
+                </div>
                 <Show when={isBotStarted()}>
                     <Bot
                         badgeBackgroundColor={bubbleProps.theme?.chatWindow?.backgroundColor}
