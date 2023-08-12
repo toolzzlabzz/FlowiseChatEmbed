@@ -95,10 +95,6 @@ export const Popup = (props: PopupProps) => {
         style={{ "z-index": 1100 }}
         on:click={closeBot}
       >
-          <div className="header">
-                    <FaRegCommentDots /> {robot}
-                    <h2>Chatbot</h2> {Testeee}
-                </div>
         <style>{styles}</style>
         <div class="fixed inset-0 bg-black bg-opacity-50 transition-opacity animate-fade-in" />
         <div class="fixed inset-0 z-10 overflow-y-auto">
