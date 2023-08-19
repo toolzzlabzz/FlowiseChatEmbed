@@ -1,0 +1,57 @@
+name: Build and Commit
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+
+jobs:
+  build-and-commit:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v2
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v2
+      with:
+        node-version: '20'
+
+    - name: Cache Dependencies
+      uses: actions/cache@v2
+      with:
+        path: ~/.yarn
+        key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-yarn-
+
+    - name: Install Dependencies
+      run: yarn install
+
+    - name: Build Project
+      run: yarn build
+
+    - name: Check for Changes
+      id: check-changes
+      run: |
+        git diff --exit-code || echo "dist/ has changed" && exit 1
+      continue-on-error: true
+
+    - name: Commit and Push
+      if: steps.check-changes.outcome == 'failure'
+      run: |
+        git config --global user.name 'GitHub Action'
+        git config --global user.email 'github-action@github.com'
+        VERSION="build-$(date +'%Y%m%d%H%M%S')"
+        git add dist/*
+        git commit -m "feat(build): automated build result $VERSION"
+        git push
+
+    - name: Purge jsDelivr Cache
+      uses: gacts/purge-jsdelivr-cache@v1
+      with:
+        url: |
+          https://cdn.jsdelivr.net/gh/toolzzlabzz/FlowiseChatEmbed/dist/web.js
