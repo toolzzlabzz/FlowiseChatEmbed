@@ -1,4 +1,4 @@
-import { createSignal, createEffect, For, onMount } from 'solid-js'
+import { createSignal, createEffect, For, onMount, Show } from 'solid-js'
 import { sendMessageQuery, isStreamAvailableQuery, IncomingInput } from '@/queries/sendMessageQuery'
 import { TextInput } from './inputs/textInput'
 import { GuestBubble } from './bubbles/GuestBubble'
@@ -9,6 +9,8 @@ import { BotMessageTheme, TextInputTheme, UserMessageTheme } from '@/features/bu
 import { Badge } from './Badge'
 import socketIOClient from 'socket.io-client'
 import { Popup } from '@/features/popup'
+import { Avatar } from '@/components/avatars/Avatar'
+import { DeleteButton } from '@/components/SendButton'
 
 type messageType = 'apiMessage' | 'userMessage' | 'usermessagewaiting'
 
@@ -28,7 +30,12 @@ export type BotProps = {
     textInput?: TextInputTheme
     poweredByTextColor?: string
     badgeBackgroundColor?: string
+    bubbleBackgroundColor?: string
+    bubbleTextColor?: string
+    title?: string
+    titleAvatarSrc?: string
     fontSize?: number
+    isFullPage?: boolean
 }
 
 const defaultWelcomeMessage = 'Olá, como posso te ajudar hoje?'
@@ -127,6 +134,7 @@ export const Bot = (props: BotProps & { class?: string }) => {
     ], { equals: false })
     const [socketIOClientId, setSocketIOClientId] = createSignal('')
     const [isChatFlowAvailableToStream, setIsChatFlowAvailableToStream] = createSignal(false)
+    let chatId: any = undefined
 
     onMount(() => {
         if (!bottomSpacer) return
@@ -141,6 +149,13 @@ export const Bot = (props: BotProps & { class?: string }) => {
         }, 50)
     }
 
+    /**
+   * Add each chat message into localStorage
+   */
+    const addChatMessage = (allMessage: MessageType[]) => {
+        localStorage.setItem(`${props.chatflowid}_EXTERNAL`, JSON.stringify({ chatId: chatId, chatHistory: allMessage }))
+    }
+
     const updateLastMessage = (text: string) => {
         setMessages(data => {
             const updated = data.map((item, i) => {
@@ -149,6 +164,7 @@ export const Bot = (props: BotProps & { class?: string }) => {
                 }
                 return item;
             });
+            addChatMessage(updated)
             return [...updated];
         });
     }
@@ -161,13 +177,18 @@ export const Bot = (props: BotProps & { class?: string }) => {
                 }
                 return item;
             });
+            addChatMessage(updated)
             return [...updated];
         });
     }
 
     // Handle errors
     const handleError = (message = 'Oops! There seems to be an error. Please try again.') => {
-        setMessages((prevMessages) => [...prevMessages, { message, type: 'apiMessage' }])
+        setMessages((prevMessages) => {
+            const messages: MessageType[] = [...prevMessages, { message, type: 'apiMessage' }]
+            addChatMessage(messages)
+            return messages
+        })
         setLoading(false)
         setUserInput('')
         scrollToBottom()
@@ -188,11 +209,16 @@ export const Bot = (props: BotProps & { class?: string }) => {
         const welcomeMessage = props.welcomeMessage ?? defaultWelcomeMessage
         const messageList = messages().filter((msg) => msg.message !== welcomeMessage)
 
-        setMessages((prevMessages) => [...prevMessages, { message: value, type: 'userMessage' }])
+        setMessages((prevMessages) => {
+            const messages: MessageType[] = [...prevMessages, { message: value, type: 'userMessage' }]
+            addChatMessage(messages)
+            return messages
+        })
 
         const body: IncomingInput = {
             question: value,
-            history: messageList
+            history: messageList,
+            chatId: chatId
         }
 
         if (props.chatflowConfig) body.overrideConfig = props.chatflowConfig
@@ -206,18 +232,27 @@ export const Bot = (props: BotProps & { class?: string }) => {
         })
 
         if (result.data) {
-
-            const data = handleVectaraMetadata(result.data)
-
-            if (typeof data === 'object' && data.text && data.sourceDocuments) {
-                if (!isChatFlowAvailableToStream()) {
-                    setMessages((prevMessages) => [
-                        ...prevMessages,
-                        { message: data.text, sourceDocuments: data.sourceDocuments, type: 'apiMessage' }
-                    ])
+            const data = result.data
+            if (!chatId) {
+                chatId = data.chatId
+                const item = localStorage.getItem(`${props.chatflowid}_EXTERNAL`)
+                if (item) {
+                    const objItem = JSON.parse(item)
+                    objItem.chatId = chatId
+                    localStorage.setItem(`${props.chatflowid}_EXTERNAL`, JSON.stringify(objItem))
+                } else {
+                    const objItem = {
+                        chatId: chatId
+                    }
+                    localStorage.setItem(`${props.chatflowid}_EXTERNAL`, JSON.stringify(objItem))
                 }
-            } else {
-                if (!isChatFlowAvailableToStream()) setMessages((prevMessages) => [...prevMessages, { message: data, type: 'apiMessage' }])
+            }
+            if (!isChatFlowAvailableToStream()) {
+                setMessages((prevMessages) => {
+                    const messages: MessageType[] = [...prevMessages, { message: data.text, sourceDocuments: data?.sourceDocuments, type: 'apiMessage' }]
+                    addChatMessage(messages)
+                    return messages
+                })
             }
             setLoading(false)
             setUserInput('')
@@ -227,9 +262,25 @@ export const Bot = (props: BotProps & { class?: string }) => {
             const error = result.error
             console.error(error)
             const err: any = error
-            const errorData = typeof err === 'string'? err :err.response.data || `${err.response.status}: ${err.response.statusText}`
+            const errorData = typeof err === 'string' ? err : err.response.data || `${err.response.status}: ${err.response.statusText}`
             handleError(errorData)
             return
+        }
+    }
+
+    const clearChat = () => {
+        try {
+            localStorage.removeItem(`${props.chatflowid}_EXTERNAL`)
+            chatId = null
+            setMessages([
+                {
+                    message: props.welcomeMessage ?? defaultWelcomeMessage,
+                    type: 'apiMessage'
+                },
+            ])
+        } catch (error: any) {
+            const errorData = error.response.data || `${error.response.status}: ${error.response.statusText}`
+            console.error(`error: ${errorData}`)
         }
     }
 
@@ -242,8 +293,31 @@ export const Bot = (props: BotProps & { class?: string }) => {
         if (props.fontSize && botContainer) botContainer.style.fontSize = `${props.fontSize}px`
     })
 
+    // createEffect(() => {
+    //     const chatMessage = localStorage.getItem(`${props.chatflowid}_EXTERNAL`)
+    //     if (chatMessage) {
+    //         const objChatMessage = JSON.parse(chatMessage)
+    //         objChatMessage.chatId = chatId
+    //     }
+    // }, chatId)
+
     // eslint-disable-next-line solid/reactivity
     createEffect(async () => {
+        const chatMessage = localStorage.getItem(`${props.chatflowid}_EXTERNAL`)
+        if (chatMessage) {
+            const objChatMessage = JSON.parse(chatMessage)
+            chatId = objChatMessage.chatId
+            const loadedMessages = objChatMessage.chatHistory.map((message: MessageType) => {
+                const chatHistory: MessageType = {
+                    message: message.message,
+                    type: message.type
+                }
+                if (message.sourceDocuments) chatHistory.sourceDocuments = message.sourceDocuments
+                return chatHistory
+            })
+            setMessages([...loadedMessages])
+        }
+
         const { data } = await isStreamAvailableQuery({
             chatflowid: props.chatflowid,
             apiHost: props.apiHost,
@@ -292,27 +366,9 @@ export const Bot = (props: BotProps & { class?: string }) => {
         }
     }
 
-    const handleVectaraMetadata = (message: any): any => {
-        if (message.sourceDocuments && message.sourceDocuments[0].metadata.length) {
-            message.sourceDocuments = message.sourceDocuments.map((docs: any) => {
-                const newMetadata: { [name: string]: any } = docs.metadata.reduce((newMetadata: any, metadata: any) => {
-                    newMetadata[metadata.name] = metadata.value;
-                    return newMetadata;
-                }, {})
-                return {
-                    pageContent: docs.pageContent,
-                    metadata: newMetadata,
-                }
-            })
-        }
-        return message
-    };
-
     const removeDuplicateURL = (message: MessageType) => {
         const visitedURLs: string[] = []
         const newSourceDocuments: any = []
-
-        message = handleVectaraMetadata(message)
 
         message.sourceDocuments.forEach((source: any) => {
             if (isValidURL(source.metadata.source) && !visitedURLs.includes(source.metadata.source)) {
@@ -329,7 +385,7 @@ export const Bot = (props: BotProps & { class?: string }) => {
         <>
             <div ref={botContainer} class={'relative flex w-full h-full text-base overflow-hidden bg-cover bg-center flex-col items-center chatbot-container ' + props.class}>
                 <div class="flex w-full h-full justify-center">
-                    <div style={{ "padding-bottom": '100px' }} ref={chatContainer} class="overflow-y-scroll min-w-full w-full min-h-full px-3 pt-10 relative scrollable-container chatbot-chat-view scroll-smooth">
+                    <div style={{ "padding-bottom": '100px', "padding-top": '70px' }} ref={chatContainer} class="overflow-y-scroll min-w-full w-full min-h-full px-3 pt-10 relative scrollable-container chatbot-chat-view scroll-smooth">
                         <For each={[...messages()]}>
                             {(message, index) => (
                                 <>
@@ -381,12 +437,41 @@ export const Bot = (props: BotProps & { class?: string }) => {
                             )}
                         </For>
                     </div>
+                    <div style={{
+                        display: 'flex',
+                        "flex-direction": 'row',
+                        "align-items": 'center',
+                        height: '50px',
+                        position: props.isFullPage ? 'fixed' : 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        background: props.bubbleBackgroundColor,
+                        color: props.bubbleTextColor,
+                        "border-top-left-radius": props.isFullPage ? '0px' : '6px',
+                        "border-top-right-radius": props.isFullPage ? '0px' : '6px'
+                    }}>
+                        <Show when={props.titleAvatarSrc}>
+                            <>
+                                <div style={{ width: '15px' }}/>
+                                <Avatar initialAvatarSrc={props.titleAvatarSrc} />
+                            </>
+                        </Show>
+                        <Show when={props.title}>
+                            <span class="px-3 whitespace-pre-wrap font-semibold max-w-full">{props.title}</span>
+                        </Show>
+                        <div style={{ flex: 1 }}></div>
+                        <DeleteButton sendButtonColor={props.bubbleTextColor} type='button' isDisabled={messages().length === 1} class='my-2 ml-2' on:click={clearChat}>
+                            <span style={{ 'font-family': 'Poppins, sans-serif' }}>Clear</span>
+                        </DeleteButton>
+                    </div>
                     <TextInput
                         backgroundColor={props.textInput?.backgroundColor}
                         textColor={props.textInput?.textColor}
                         placeholder={props.textInput?.placeholder}
                         sendButtonColor={props.textInput?.sendButtonColor}
                         fontSize={props.fontSize}
+                        disabled={loading()}
                         defaultValue={userInput()}
                         onSubmit={handleSubmit}
                     />
