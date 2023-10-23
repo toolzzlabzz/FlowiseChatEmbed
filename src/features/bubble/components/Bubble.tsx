@@ -3,7 +3,6 @@ import styles from '../../../assets/index.css'
 import { BubbleButton } from './BubbleButton'
 import { BubbleParams } from '../types'
 import { Bot, BotProps } from '../../../components/Bot'
-import { FaRegCommentDots } from 'react-icons/fa' // Importing message icon from Font Awesome
 
 export type BubbleProps = BotProps & BubbleParams
 
