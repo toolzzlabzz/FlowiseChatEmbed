@@ -1,6 +1,5 @@
-import { For, Show, onMount } from 'solid-js';
+import { For, Show } from 'solid-js';
 import { Avatar } from '../avatars/Avatar';
-import { Marked } from '@ts-stack/markdown';
 import { MessageType } from '../Bot';
 
 type Props = {
@@ -17,17 +16,7 @@ type Props = {
 const defaultBackgroundColor = '#3B81F6';
 const defaultTextColor = '#ffffff';
 
-Marked.setOptions({ isNoP: true });
-
 export const GuestBubble = (props: Props) => {
-  let userMessageEl: HTMLDivElement | undefined;
-
-  onMount(() => {
-    if (userMessageEl) {
-      userMessageEl.innerHTML = Marked.parse(props.message.message);
-    }
-  });
-
   return (
     <div class="flex justify-end mb-2 items-end guest-container" style={{ 'margin-left': '50px' }}>
       <div
@@ -53,7 +42,7 @@ export const GuestBubble = (props: Props) => {
                       </div>
                     ) : (
                       <audio class="w-[200px] h-10 block bg-cover bg-center rounded-none text-transparent" controls>
-                        Your browser does not support the &lt;audio&gt; tag.
+                        Your browser does not support the audio tag.
                         <source src={src} type={item.mime} />
                       </audio>
                     )}
@@ -63,7 +52,7 @@ export const GuestBubble = (props: Props) => {
             </For>
           </div>
         )}
-        {props.message.message && <span ref={userMessageEl} class="mr-2 whitespace-pre-wrap" />}
+        {props.message.message && <span class="mr-2 whitespace-pre-wrap">{props.message.message}</span>}
       </div>
       <Show when={props.showAvatar}>
         <Avatar initialAvatarSrc={props.avatarSrc} />
